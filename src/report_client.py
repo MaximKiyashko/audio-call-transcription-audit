@@ -8,6 +8,10 @@ from config import (
     TOP_WORKS_COLUMN,
     TOP_WORKS_START_ROW,
     TOP_WORKS_END_ROW,
+    REPORT_SHEET_NAME,
+    REPORT_FIRST_DATA_ROW,
+    REPORT_LAST_DATA_ROW,
+    REPORT_HEADER_ROW
 )
 
 from drive_client import (
@@ -15,6 +19,7 @@ from drive_client import (
     get_sheets_service,
     find_file_by_name,
     copy_file_to_folder,
+    get_sheets_service
 )
 
 
@@ -233,3 +238,130 @@ def mark_comment_cell_red(
             ]
         },
     ).execute()
+
+
+def build_score_formula(row_number: int) -> str:
+    """
+    Scores all binary 1/0 checklist columns.
+
+    F-M:
+    F Початок розмови
+    G Кузов
+    H Рік
+    I Пробіг
+    J Комплексна діагностика
+    K Роботи раніше
+    L Запис на сервіс
+    M Завершення
+
+    O:
+    O Дотримувався інструкцій з топ 100
+    """
+    return (
+        f"=F{row_number}+G{row_number}+H{row_number}+I{row_number}+"
+        f"J{row_number}+K{row_number}+L{row_number}+M{row_number}+O{row_number}"
+    )
+
+
+def ensure_score_header(spreadsheet_id: str):
+    sheets_service = get_sheets_service()
+    sheet = quote_sheet_name(REPORT_SHEET_NAME)
+
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=spreadsheet_id,
+        range=f"{sheet}!U1:U2",
+        valueInputOption="USER_ENTERED",
+        body={
+            "values": [
+                ["Підрахунок"],
+                ["Бали"],
+            ]
+        },
+    ).execute()
+
+
+def find_next_report_row(spreadsheet_id: str) -> int:
+    """
+    Finds the first empty row for a new call report.
+    We check column A, because date/file identifier should always be filled there.
+    """
+    sheets_service = get_sheets_service()
+    sheet = quote_sheet_name(REPORT_SHEET_NAME)
+
+    range_name = f"{sheet}!A{REPORT_FIRST_DATA_ROW}:A{REPORT_LAST_DATA_ROW}"
+
+    response = (
+        sheets_service.spreadsheets()
+        .values()
+        .get(
+            spreadsheetId=spreadsheet_id,
+            range=range_name,
+        )
+        .execute()
+    )
+
+    values = response.get("values", [])
+
+    max_rows = REPORT_LAST_DATA_ROW - REPORT_FIRST_DATA_ROW + 1
+
+    for index in range(max_rows):
+        if index >= len(values):
+            return REPORT_FIRST_DATA_ROW + index
+
+        row = values[index]
+        cell_value = str(row[0]).strip() if row else ""
+
+        if not cell_value:
+            return REPORT_FIRST_DATA_ROW + index
+
+    raise RuntimeError(
+        f"No empty report rows found between "
+        f"{REPORT_FIRST_DATA_ROW} and {REPORT_LAST_DATA_ROW}."
+    )
+
+
+def write_report_row(
+    spreadsheet_id: str,
+    row_values: list[Any],
+    comment_is_bad: bool = False,
+) -> int:
+    """
+    Writes one call analysis row into the next empty report row.
+    Returns written row number.
+    """
+    sheets_service = get_sheets_service()
+
+    ensure_score_header(spreadsheet_id)
+
+    row_number = find_next_report_row(spreadsheet_id)
+
+    # We expect A:U = 21 columns.
+    if len(row_values) != 21:
+        raise ValueError(f"Expected 21 values for A:U, got {len(row_values)}")
+
+    sheet = quote_sheet_name(REPORT_SHEET_NAME)
+    range_name = f"{sheet}!A{row_number}:U{row_number}"
+
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=spreadsheet_id,
+        range=range_name,
+        valueInputOption="USER_ENTERED",
+        body={
+            "values": [row_values],
+        },
+    ).execute()
+
+    if comment_is_bad:
+        sheet_id = get_sheet_id(
+            spreadsheet_id=spreadsheet_id,
+            sheet_name=REPORT_SHEET_NAME,
+        )
+
+        mark_comment_cell_red(
+            spreadsheet_id=spreadsheet_id,
+            sheet_id=sheet_id,
+            row_number=row_number,
+        )
+
+    print(f"Report row written: {row_number}")
+    return row_number

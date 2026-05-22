@@ -28,6 +28,12 @@ TOP_WORKS_COLUMN = "N"
 TOP_WORKS_START_ROW = int(os.getenv("TOP_WORKS_START_ROW", "2980"))
 TOP_WORKS_END_ROW = int(os.getenv("TOP_WORKS_END_ROW", "3064"))
 
+REPORT_HEADER_ROW = int(os.getenv("REPORT_HEADER_ROW", "2"))
+REPORT_FIRST_DATA_ROW = int(os.getenv("REPORT_FIRST_DATA_ROW", "3"))
+REPORT_LAST_DATA_ROW = int(os.getenv("REPORT_LAST_DATA_ROW", "2979"))
+
+REPORT_SCORE_COLUMN = "U"
+
 AUDIO_EXTENSIONS = {
     ".mp3",
     ".wav",
