@@ -20,6 +20,14 @@ LOCAL_TRANSCRIPTS_DIR = ROOT_DIR / "data" / "transcripts"
 CREDENTIALS_FILE = ROOT_DIR / "credentials.json"
 TOKEN_FILE = ROOT_DIR / "token.json"
 
+REPORT_TEMPLATE_FILE_ID = os.getenv("REPORT_TEMPLATE_FILE_ID")
+REPORT_FILE_NAME = os.getenv("REPORT_FILE_NAME", "Звіт прослуханих розмов - auto")
+REPORT_SHEET_NAME = os.getenv("REPORT_SHEET_NAME", "Лист1")
+
+TOP_WORKS_COLUMN = "N"
+TOP_WORKS_START_ROW = int(os.getenv("TOP_WORKS_START_ROW", "2980"))
+TOP_WORKS_END_ROW = int(os.getenv("TOP_WORKS_END_ROW", "3064"))
+
 AUDIO_EXTENSIONS = {
     ".mp3",
     ".wav",

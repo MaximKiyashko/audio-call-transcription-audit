@@ -1,4 +1,5 @@
 import io
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -11,14 +12,26 @@ from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 from config import CREDENTIALS_FILE, TOKEN_FILE, AUDIO_EXTENSIONS
 
 
-SCOPES = ["https://www.googleapis.com/auth/drive"]
+SCOPES = [
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/spreadsheets"
+]
 
 
-def get_drive_service():
+def get_google_credentials():
     creds = None
 
     if TOKEN_FILE.exists():
-        creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+        try:
+            creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+        except json.JSONDecodeError:
+            print("token.json is corrupted or empty. Recreating it...")
+            TOKEN_FILE.unlink()
+            creds = None
+        except Exception as error:
+            print(f"Failed to read token.json: {error}")
+            TOKEN_FILE.unlink()
+            creds = None
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -26,8 +39,7 @@ def get_drive_service():
         else:
             if not CREDENTIALS_FILE.exists():
                 raise FileNotFoundError(
-                    "credentials.json not found. Download OAuth Desktop credentials "
-                    "from Google Cloud Console and put it into project root."
+                    "credentials.json not found in project root."
                 )
 
             flow = InstalledAppFlow.from_client_secrets_file(
@@ -38,7 +50,15 @@ def get_drive_service():
 
         TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
 
-    return build("drive", "v3", credentials=creds)
+    return creds
+
+
+def get_drive_service():
+    return build("drive", "v3", credentials=get_google_credentials())
+
+
+def get_sheets_service():
+    return build("sheets", "v4", credentials=get_google_credentials())
 
 
 def list_files_in_folder(service, folder_id: str) -> list[dict]:
